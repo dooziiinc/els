@@ -18,7 +18,6 @@ References this implementation is informed by:
   rebuttal, showing the original result depended on unprincipled
   choices in word-form selection.
 - https://www.math.toronto.edu/drorbn/Codes/Nations/WRR2/index.html
-- https://users.cecs.anu.edu.au/~bdm/dilugim/Nations/WRR2/index.html
 - https://torahbiblecodes.com/
 
 **This is a research/exploration tool, not a verdict.** See
