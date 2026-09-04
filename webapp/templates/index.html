@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Torah ELS Search</title>
+<style>
+  :root { color-scheme: light; }
+  body { font-family: -apple-system, Segoe UI, Helvetica, Arial, sans-serif; background:#faf8f3; color:#222; margin:0; padding:0 0 60px; }
+  header { background:#2b2118; color:#f4ead9; padding:24px 32px; }
+  header h1 { margin:0 0 4px; font-size:22px; }
+  header p { margin:0; color:#cbb894; font-size:13px; }
+  main { max-width:1100px; margin:24px auto; padding:0 24px; }
+  form { background:#fff; border:1px solid #e4ddd0; border-radius:10px; padding:20px 24px; }
+  .row { display:flex; flex-wrap:wrap; gap:16px; margin-bottom:14px; }
+  .field { display:flex; flex-direction:column; gap:4px; }
+  .field label { font-size:12px; color:#6b6152; font-weight:600; text-transform:uppercase; letter-spacing:.03em; }
+  input[type=text], input[type=number], select {
+    padding:8px 10px; border:1px solid #d7cdb9; border-radius:6px; font-size:14px; min-width:140px;
+  }
+  input[dir=rtl] { text-align:right; font-size:18px; }
+  button { background:#8c5a2b; color:#fff; border:none; border-radius:6px; padding:10px 22px; font-size:14px; cursor:pointer; }
+  button:hover { background:#734a22; }
+  .error { background:#fbeaea; color:#a3342e; border:1px solid #f2c6c3; padding:12px 16px; border-radius:8px; margin-bottom:16px; }
+  .result-card { background:#fff; border:1px solid #e4ddd0; border-radius:10px; padding:20px 24px; margin-top:24px; }
+  .result-card h2 { margin-top:0; font-size:18px; }
+  .meta { color:#6b6152; font-size:13px; margin-bottom:16px; }
+  .grid-wrap { overflow-x:auto; border:1px solid #eee; border-radius:8px; }
+  table.grid { border-collapse:collapse; direction:rtl; margin:0 auto; }
+  table.grid td {
+    width:26px; height:26px; text-align:center; vertical-align:middle;
+    font-size:15px; font-family:"SBL Hebrew","Times New Roman",serif; border:1px solid #f1ece1;
+  }
+  table.grid td.primary { font-weight:700; color:#fff; border-radius:3px; }
+  table.grid td.hit { font-weight:600; border-radius:3px; }
+  .legend { display:flex; flex-wrap:wrap; gap:10px; margin:14px 0; }
+  .swatch { display:inline-flex; align-items:center; gap:6px; font-size:13px; }
+  .swatch .dot { width:12px; height:12px; border-radius:3px; display:inline-block; }
+  table.hits { border-collapse:collapse; width:100%; margin-top:10px; font-size:13px; }
+  table.hits th, table.hits td { text-align:left; padding:6px 10px; border-bottom:1px solid #eee; }
+  table.hits th { color:#6b6152; font-weight:600; text-transform:uppercase; font-size:11px; }
+  .note { font-size:12px; color:#8a806f; margin-top:18px; line-height:1.5; }
+  footer { max-width:1100px; margin:0 auto; padding:0 24px; color:#a89d89; font-size:12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Torah ELS Search</h1>
+  <p>Equidistant Letter Sequence search over the Hebrew Torah (Westminster Leningrad Codex)</p>
+</header>
+<main>
+  {% if error %}<div class="error">{{ error }}</div>{% endif %}
+
+  <form method="post" action="/search">
+    <div class="row">
+      <div class="field">
+        <label for="word">Word to search (Hebrew)</label>
+        <input type="text" id="word" name="word" dir="rtl" value="{{ form.word or '' }}" required>
+      </div>
+      <div class="field">
+        <label for="book">Corpus</label>
+        <select id="book" name="book">
+          <option value="" {% if not form.book %}selected{% endif %}>Whole Torah (Gen-Deut)</option>
+          {% for code, name in books.items() %}
+          <option value="{{ code }}" {% if form.book == code %}selected{% endif %}>{{ name }} only</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="width">Grid width (blank = auto)</label>
+        <input type="number" id="width" name="width" value="{{ form.width or '' }}" min="1">
+      </div>
+      <div class="field">
+        <label for="row_margin">Row margin</label>
+        <input type="number" id="row_margin" name="row_margin" value="{{ form.row_margin or 5 }}" min="0">
+      </div>
+    </div>
+    <div class="row">
+      <div class="field" style="flex:1; min-width:280px;">
+        <label for="candidates">Vicinity words (comma-separated, optional)</label>
+        <input type="text" id="candidates" name="candidates" dir="rtl" value="{{ form.candidates or '' }}" placeholder="אלהים, ישראל, תורה">
+      </div>
+      <div class="field">
+        <label for="mode">Vicinity mode</label>
+        <select id="mode" name="mode">
+          <option value="grid_block" {% if form.mode == 'grid_block' %}selected{% endif %}>Same grid panel</option>
+          <option value="radius" {% if form.mode == 'radius' %}selected{% endif %}>Radius around start</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="radius">Radius (radius mode)</label>
+        <input type="number" id="radius" name="radius" value="{{ form.radius or 10 }}" min="0">
+      </div>
+      <div class="field">
+        <label for="max_skip">Max skip (vicinity words)</label>
+        <input type="number" id="max_skip" name="max_skip" value="{{ form.max_skip or 200 }}" min="1">
+      </div>
+    </div>
+    <button type="submit">Search</button>
+  </form>
+
+  {% if result %}
+  <div class="result-card">
+    <h2>'{{ result.word }}'</h2>
+    <div class="meta">
+      {{ result.corpus_name }} ({{ '{:,}'.format(result.corpus_len) }} letters) &middot;
+      minimal-skip occurrence: start={{ result.start }}, skip={{ result.skip }}
+      {% if result.reference %} &middot; {{ result.reference }}{% endif %}
+      &middot; grid width {{ result.width }} (rows {{ result.row_lo }}-{{ result.row_hi }})
+    </div>
+
+    {% if result.legend %}
+    <div class="legend">
+      {% for l in result.legend %}
+      <span class="swatch"><span class="dot" style="background:{{ l.color }}"></span>{{ l.word }}</span>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="grid-wrap">
+      <table class="grid">
+        {% for row in result.rows %}
+        <tr>
+          {% for cell in row %}
+            {% if cell is none %}
+              <td></td>
+            {% elif cell.primary %}
+              <td class="primary" style="background:{{ cell.color }}" title="{{ cell.title }}">{{ cell.char }}</td>
+            {% elif cell.color %}
+              <td class="hit" style="background:{{ cell.color }}22; color:{{ cell.color }};" title="{{ cell.title }}">{{ cell.char }}</td>
+            {% else %}
+              <td>{{ cell.char }}</td>
+            {% endif %}
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
+
+    {% if result.hits %}
+    <h3 style="margin-top:20px; font-size:15px;">Vicinity matches ({{ result.hits|length }})</h3>
+    <table class="hits">
+      <thead><tr><th>Word</th><th>Start</th><th>Skip</th><th>Reference</th></tr></thead>
+      <tbody>
+        {% for h in result.hits %}
+        <tr>
+          <td style="color:{{ h.color }}; font-weight:600;">{{ h.word }}</td>
+          <td>{{ h.start }}</td>
+          <td>{{ h.skip }}</td>
+          <td>{{ h.reference or '' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <p class="note">
+    Positive skip reads forward through the text, negative skip backward; skip = 1 is an ordinary
+    (unskipped) occurrence. "Same grid panel" vicinity search requires a candidate word's <em>entire</em>
+    ELS to fall within the displayed rows; "radius" only requires its starting cell to be nearby. Short
+    candidate words (2-3 letters) will often match somewhere nearby by chance alone -- that's expected,
+    not a bug. See the project README for the statistical significance tools (permutation testing) that
+    let you check whether a result is more notable than chance predicts.
+  </p>
+</main>
+<footer>Text: Westminster Leningrad Codex via the OpenScriptures Hebrew Bible project (public domain).</footer>
+</body>
+</html>
