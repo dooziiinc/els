@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "torahcodes"
+version = "0.1.0"
+description = "Equidistant Letter Sequence (ELS) search and statistical testing over the Hebrew Torah, with support for user-provided comparison corpora."
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "numpy>=1.24",
+    "click>=8.1",
+    "flask>=3.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.4"]
+
+[project.scripts]
+torahcodes = "torahcodes.cli:cli"
+
+[tool.setuptools]
+packages = ["torahcodes", "torahcodes.search", "torahcodes.stats", "torahcodes.webapp"]
+
+[tool.setuptools.package-data]
+torahcodes = []
